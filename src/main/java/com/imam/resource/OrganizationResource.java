@@ -1,66 +1,43 @@
 package com.imam.resource;
 
+import com.imam.dto.OrganizationDTO;
 import com.imam.entity.Organization;
-import com.imam.entity.User;
-import io.quarkus.hibernate.reactive.panache.Panache;
+import com.imam.service.OrganizationService;
 import io.smallrye.mutiny.Uni;
-import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
-import org.jboss.resteasy.reactive.RestResponse;
+import jakarta.ws.rs.core.MediaType;
 import java.util.List;
+import java.util.UUID;
 
-@Path("/organization")
-@ApplicationScoped
+@Path("/organizations")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class OrganizationResource {
 
+    @Inject
+    OrganizationService organizationService;
+
     @GET
-    public Uni<List<Organization>> getAllOrganizations(){
-        return Organization.listAll();
+    public Uni<List<Organization>> getAllOrganizations() {
+        return organizationService.getAllOrganizations();
     }
 
     @GET
     @Path("/{id}")
-    public Uni<RestResponse<Organization>> getOrgById(@PathParam("id") Long id){
-        return Organization.<Organization>findById(id)
-                .onItem().ifNotNull().transform(RestResponse::ok)
-                .onItem().ifNull().continueWith(RestResponse.status(RestResponse.Status.NOT_FOUND, null));
+    public Uni<Organization> getOrganizationById(@PathParam("id") UUID id) {
+        return organizationService.getOrganizationById(id);
     }
 
     @POST
-    public Uni<RestResponse<Organization>> addOrganization(Organization organization){
-        if (organization.orgName == null || organization.orgAddress == null) {
-            return Uni.createFrom().item(RestResponse.status(RestResponse.Status.BAD_REQUEST, null));
-        }
-        return Panache.withTransaction(organization::persist)
-                .replaceWith(RestResponse.status(RestResponse.Status.CREATED, organization));
+    public Uni<Void> createOrganization(OrganizationDTO dto) {
+        Organization org = dto.toEntity();
+        return organizationService.createOrganization(org);
     }
 
     @DELETE
     @Path("/{id}")
-    public Uni<RestResponse<String>> deleteOrganization(@PathParam("id") Long id){
-        return Panache.withTransaction(() -> Organization.deleteById(id))
-                .map(deleted -> deleted
-                        ? RestResponse.status(RestResponse.Status.OK, "Organization deleted successfully")
-                        : RestResponse.status(RestResponse.Status.NOT_FOUND, "Organization not found"));
-    }
-
-    @PATCH
-    @Path("/{id}")
-    public Uni<RestResponse<Organization>> updateOrganization(@PathParam("id") Long id, Organization updatedOrg) {
-        return Panache.withTransaction(() ->
-                Organization.<Organization>findById(id)
-                        .onItem().ifNotNull().transformToUni(org -> {
-                            org.orgName = updatedOrg.orgName != null ? updatedOrg.orgName : org.orgName;
-                            org.orgAddress = updatedOrg.orgAddress != null ? updatedOrg.orgAddress : org.orgAddress;
-                            return org.persistAndFlush().replaceWith(RestResponse.ok(org));
-                        })
-                        .onItem().ifNull().continueWith(RestResponse.status(RestResponse.Status.NOT_FOUND, null))
-        );
-    }
-
-    @GET
-    @Path("/{id}/users")
-    public Uni<List<User>> getUsersByOrganization(@PathParam("id") Long id){
-        return User.find("organization.id", id).list();
+    public Uni<Boolean> deleteOrganization(@PathParam("id") UUID id) {
+        return organizationService.deleteOrganization(id);
     }
 }
